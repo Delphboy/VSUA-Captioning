@@ -1,0 +1,32 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "XE Training",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": [
+                "--gpus",
+                "0,1",
+                "--batch_size",
+                "32",
+                "--id",
+                "experiment-xe",
+                "--geometry_relation",
+                "True",
+                "--save_checkpoint_every",
+                "3540", //Every 1 epoch
+                "--max_epochs",
+                "20",
+                "--beam_size",
+                "3",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}

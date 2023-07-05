@@ -107,7 +107,9 @@ NumFeats = 8
 Directed = False
 SavePath = 'data/geometry_feats-{}directed.pkl'.format('' if Directed else 'un')
 
-BoxInfo = pickle.load(open('data/vsua_box_info.pkl'))
+with open('data/vsua_box_info.pkl', 'rb') as f:
+    BoxInfo = pickle.load(f, encoding='latin1')
+
 NumImages = len(BoxInfo)
 counter = Counter()
 

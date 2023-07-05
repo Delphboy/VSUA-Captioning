@@ -1,20 +1,22 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+# from __future__ import absolute_import
+# from __future__ import division
+# from __future__ import print_function
 
-import numpy as np
 import os
 import pickle
 from multiprocessing import Pool, Value
+
+import numpy as np
 
 """
 build geometry graph & obtain its edges and edge features
 assign an edge between two boxes if their iou and distance satisfy given threshold
 """
 
+
 class Counter(object):
     def __init__(self):
-        self.val = Value('i', 0)
+        self.val = Value("i", 0)
 
     def add(self, n=1):
         with self.val.get_lock():
@@ -36,7 +38,7 @@ def build_geometry_graph(id):
         else:
             start = i
         for j in range(start, num_boxes):
-            if i==j:
+            if i == j:
                 continue
             # iou and dist thresholds
             if feats[i][j][3] < Iou or feats[i][j][6] > Dist:
@@ -52,19 +54,23 @@ def build_geometry_graph(id):
     edges = np.array(edges)
     relas = np.array(relas)
     graph = {}
-    graph['edges'] = edges
-    graph['feats'] = relas
+    graph["edges"] = edges
+    graph["feats"] = relas
     np.save(os.path.join(SaveDir, str(id)), graph)
 
     if counter.value % 100 == 0 and counter.value >= 100:
-        print('{} / {}'.format(counter.value, num_images))
+        print("{} / {}".format(counter.value, num_images))
 
 
 Directed = False  # directed or undirected graph
 Iou = 0.2
 Dist = 0.5
-SaveDir = "data/geometry-iou{}-dist{}-{}directed".format(Iou, Dist, '' if Directed else 'un')
-GeometryFeatsPath = 'data/geometry_feats-{}directed.pkl'.format('' if Directed else 'un')
+SaveDir = "data/geometry-iou{}-dist{}-{}directed".format(
+    Iou, Dist, "" if Directed else "un"
+)
+GeometryFeatsPath = "data/geometry_feats-{}directed.pkl".format(
+    "" if Directed else "un"
+)
 
 if os.path.exists(SaveDir):
     raise Exception("dir already exists")
@@ -72,7 +78,7 @@ else:
     os.mkdir(SaveDir)
 counter = Counter()
 print("loading geometry features of all box pairs....")
-with open(GeometryFeatsPath, 'rb') as f:
+with open(GeometryFeatsPath, "rb") as f:
     all_feats = pickle.load(f)
 num_images = len(all_feats)
 print("Loaded %d images...." % num_images)
@@ -82,5 +88,3 @@ p = Pool(20)
 print("[INFO] Start")
 results = p.map(build_geometry_graph, all_feats.keys())
 print("Done")
-
-

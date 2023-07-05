@@ -1,6 +1,6 @@
 import os
 import torch
-import cPickle
+import _pickle as cPickle
 import logging
 
 def save_nets_structure(nets, opt):
