@@ -1,6 +1,9 @@
 import argparse
 import os
 
+import numpy as np
+import torch
+
 from utils.helper import str2bool
 
 
@@ -47,7 +50,7 @@ def parse_opt():
         "--cached_tokens",
         type=str,
         default="coco-train-idxs",
-        help="Cached token file for calculating cider score during self critical training.",
+        help="Cached token file for calculating cider score during scst training.",
     )
     parser.add_argument(
         "--loader_num_workers",
@@ -153,7 +156,7 @@ def parse_opt():
         "--self_critical_after",
         type=int,
         default=-1,
-        help="After what epoch do we start finetuning the CNN? (-1 = disable; never finetune, 0 = finetune from start)",
+        help="After what epoch do we start finetuning (-1 = disable, 0 = from start)",
     )
     parser.add_argument(
         "--seq_per_img",
@@ -354,19 +357,35 @@ def parse_opt():
         default=128,
         help="graph embedding_size of obj, attr, rela",
     )
+    parser.add_argument(
+        "--relationship_weights",
+        type=str,
+        default="",
+        help="location of the relationship weights",
+    )
+    parser.add_argument(
+        "--fixed_seed", type=str2bool, default=True, help="whether to use fixed seed"
+    )
 
     args = parser.parse_args()
 
     if args.checkpoint_path == "":
         args.checkpoint_path = os.path.join(args.checkpoint_root, args.id)
+
     if not os.path.exists(args.checkpoint_root):
         os.mkdir(args.checkpoint_root)
+
     if not os.path.exists(args.checkpoint_path):
         os.mkdir(args.checkpoint_path)
 
     if args.resume_from:
         path = os.path.join(args.checkpoint_root, args.resume_from)
         assert os.path.exists(path), "%s not exists" % args.resume_from
+
+    if args.fixed_seed:
+        np.random.seed(0)
+        torch.manual_seed(0)
+        torch.cuda.manual_seed_all(0)
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
     print("[INFO] set CUDA_VISIBLE_DEVICES = %s" % args.gpus)

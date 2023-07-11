@@ -103,6 +103,12 @@ class DataLoader(data.Dataset):
             )
             # Terminate the child process when the parent exists
 
+        # load the relationship weights
+        if opt.relationship_weights:
+            with open(opt.relationship_weights) as f:
+                self.relationship_weights = json.load(f)
+            print("[INFO] Relationship weights loaded.")
+
         def cleanup():
             print("Terminating BlobFetcher")
             for split in self.iterators.keys():
@@ -254,6 +260,7 @@ class DataLoader(data.Dataset):
         sg_data["rela_edges"] = np.zeros(
             [len(rela_batch), max_rela_len, 2], dtype="int"
         )
+
         if self.geometry_relation:
             sg_data["rela_feats"] = np.zeros(
                 [len(rela_batch), max_rela_len, self.opt.geometry_rela_feat_dim],
@@ -276,6 +283,31 @@ class DataLoader(data.Dataset):
                 "feats"
             ]
             sg_data["rela_masks"][i, : rela_batch[i]["edges"].shape[0]] = 1
+
+        if self.opt.relationship_weights:
+            sg_data["rela_feats"] = torch.tensor(sg_data["rela_feats"])
+            # Need to create a vector of weights for each relationship
+            # that can be concated to the rela_feats so that it's a 9-dim vector
+            # for each relationship (including no relationship)
+            weights_batch = []
+            for batch_idx in range(sg_data["rela_edges"].shape[0]):
+                weights = []
+                batch = sg_data["rela_edges"][batch_idx]
+                for rela_idx in range(len(batch)):
+                    rela = batch[rela_idx]
+                    _from = rela[0]
+                    _to = rela[1]
+
+                    obj1 = sg_data["obj_labels"][batch_idx][_from].item()
+                    # BUG: index 45 is out of bounds for axis 0 with size 45
+                    # Do I need to do _from - 1???
+                    obj2 = sg_data["obj_labels"][batch_idx][_to].item()
+                    key = f"({obj1}, {obj2})"
+                    weights.append(self.relationship_weights.get(key, 0.0))
+                weights_batch.append(weights)
+            wbt = torch.tensor(weights_batch).unsqueeze(2)
+            sg_data["rela_feats"] = torch.cat([sg_data["rela_feats"], wbt], dim=2)
+            sg_data["rela_feats"] = sg_data["rela_feats"].numpy()
 
         return sg_data
 

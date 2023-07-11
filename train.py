@@ -99,7 +99,7 @@ def train(opt):
             data["att_masks"],
         ]
         tmp = [_ if _ is None else torch.from_numpy(_).cuda() for _ in tmp]
-        fc_feats, att_feats, labels, masks, att_masks = tmp
+        fc_feats, att_feats, targets, masks, att_masks = tmp
         sg_data = {
             key: data["sg_data"][key]
             if data["sg_data"][key] is None
@@ -111,8 +111,8 @@ def train(opt):
         torch.cuda.synchronize()
         optimizer.zero_grad()
         if not sc_flag:
-            out = decoder(sg_data, fc_feats, att_feats, labels, att_masks)
-            loss = crit(out, labels[:, 1:], masks[:, 1:])
+            out = decoder(sg_data, fc_feats, att_feats, targets, att_masks)
+            loss = crit(out, targets[:, 1:], masks[:, 1:])
         else:
             gen_result, sample_logprobs, core_args = decoder(
                 sg_data,
@@ -204,11 +204,6 @@ def train(opt):
         if epoch > opt.max_epochs and opt.max_epochs != -1:
             break
 
-
-opt = opts.parse_opt()
-logger = define_logger(opt)
-tb = MyTensorboard(opt)
-train(opt)
 
 opt = opts.parse_opt()
 logger = define_logger(opt)

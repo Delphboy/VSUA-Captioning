@@ -224,4 +224,3 @@ class CaptionModel(nn.Module):
         ]
         done_beams = reduce(lambda a, b: a + b, done_beams_table)
         return done_beams
-        return done_beams
