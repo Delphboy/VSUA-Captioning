@@ -1,7 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 from argparse import Namespace
-from typing import Optional
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
@@ -90,7 +90,7 @@ class AttModel(CaptionModel):
         proj_rela_dim = (
             self.opt.geometry_rela_feat_dim + 1
             if self.opt.relationship_weights
-            else self.geometry_rela_feat_dim
+            else self.opt.geometry_rela_feat_dim
         )
         self.proj_rela = nn.Sequential(
             *[
@@ -316,7 +316,7 @@ class AttModel(CaptionModel):
         att_masks: Optional[torch.Tensor] = None,
         opt: Optional[dict] = {},
         _core_args=None,
-    ) -> list[torch.Tensor]:
+    ) -> List[torch.Tensor]:
         sample_max = opt.get("sample_max", 1)
         beam_size = opt.get("beam_size", 1)
         temperature = opt.get("temperature", 1.0)

@@ -1,7 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 from argparse import Namespace
-from typing import Optional
+from typing import List, Optional
 
 import torch
 import torch.nn as nn
@@ -81,7 +81,7 @@ class VSUACore(nn.Module):
         self,
         xt: torch.Tensor,
         state: tuple([torch.Tensor, torch.Tensor]),
-        core_args: list[torch.Tensor],
+        core_args: List[torch.Tensor],
     ) -> tuple([torch.Tensor, tuple([torch.Tensor, torch.Tensor])]):
         (
             fc_feats,
