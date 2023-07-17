@@ -4,7 +4,7 @@
 #$ -pe smp 8
 #$ -l gpu=1
 #$ -l gpu_type=ampere
-#$ -wd /data/home/eey362/image-captioning
+#$ -wd /data/home/eey362/VSUA-Captioning
 #$ -j y
 #$ -m ea
 #$ -o log/
@@ -20,18 +20,13 @@ module load java/1.8.0_241-oracle
 # Activate virtual environment
 source .venv/bin/activate
 
-# pip install
-pip install torch==1.12.1+cu116 torchvision==0.13.1+cu116 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu116
-python3 -m pip install -r requirements.txt
-
-
 # Run the script
-python3 train.py --batch_size 32 \
-                --geometry_relation True
-                --save_checkpoint_every 3540 \
+python3 train.py --batch_size 64 \
+                --geometry_relation True \
+                --input_json "data/cocotalk_10.json" \
+                --save_checkpoint_every 890 \
                 --max_epochs 30 \
                 --self_critical_after 20 \
                 --beam_size 3 \
                 --fixed_seed True \
-                --id weighted-geometry \
-                --relationship_weights "/dir/to/weights" \
+                --id unweighted-geometry-scst-10 \
