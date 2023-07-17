@@ -83,6 +83,32 @@
             ],
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Unweigthed Semantic XE Training",
+            "type": "python",
+            "request": "launch",
+            "program": "train.py",
+            "args": [
+                "--gpus",
+                "0",
+                "--batch_size",
+                "32",
+                "--id",
+                "unweighted-semantic-xe",
+                "--geometry_relation",
+                "False",
+                "--save_checkpoint_every",
+                "17700", //Every 5 epoch
+                "--max_epochs",
+                "20",
+                "--beam_size",
+                "3",
+                "--loader_num_workers",
+                "1",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

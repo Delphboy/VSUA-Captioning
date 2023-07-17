@@ -362,8 +362,12 @@ class DataLoader(data.Dataset):
             # shape (Nr, 3), column index 0,1 is edge, index 2 is relation label
             triplet = sg_use["rela_matrix"]
             rela = {}
-            rela["edges"] = triplet[:, 0:2]
-            rela["feats"] = triplet[:, 2]
+            try:
+                rela["edges"] = triplet[:, 0:2]
+                rela["feats"] = triplet[:, 2]
+            except Exception as e:  # Handle when only one graph is pulled out
+                rela["edges"] = triplet[0:2]
+                rela["feats"] = triplet[2]
 
         obj = sg_use["obj_attr"][:, 1 : 1 + self.opt.num_obj_label_use]  # shape (No, ?)
         attr = sg_use["obj_attr"][
