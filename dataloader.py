@@ -306,6 +306,10 @@ class DataLoader(data.Dataset):
                     weights.append(self.relationship_weights.get(key, 0.0))
                 weights_batch.append(weights)
             wbt = torch.tensor(weights_batch).unsqueeze(2)
+
+            if len(sg_data["rela_feats"].shape) == 2:
+                sg_data["rela_feats"] = sg_data["rela_feats"].unsqueeze(-1)
+
             sg_data["rela_feats"] = torch.cat([sg_data["rela_feats"], wbt], dim=2)
             sg_data["rela_feats"] = sg_data["rela_feats"].numpy()
 

@@ -87,17 +87,22 @@ class AttModel(CaptionModel):
             ]
         )
 
-        proj_rela_dim = (
-            self.opt.geometry_rela_feat_dim + 1
-            if self.opt.relationship_weights
-            else self.opt.geometry_rela_feat_dim
-        )
+        if self.opt.geometry_relation:
+            proj_rela_dim = (
+                self.opt.geometry_rela_feat_dim + 1
+                if self.opt.relationship_weights
+                else self.opt.geometry_rela_feat_dim
+            )
+        else:
+            if self.opt.relationship_weights:
+                proj_rela_dim = 2
+            else:
+                proj_rela_dim = self.sg_label_embed_size
+
         self.proj_rela = nn.Sequential(
             *[
                 nn.Linear(
-                    proj_rela_dim
-                    if self.geometry_relation
-                    else self.sg_label_embed_size,
+                    proj_rela_dim,
                     self.rnn_size,
                 ),
                 nn.ReLU(),
@@ -136,7 +141,7 @@ class AttModel(CaptionModel):
     ) -> tuple([torch.Tensor, torch.Tensor, torch.Tensor]):
         obj_embed = self.obj_embed(obj_labels)
         attr_embed = self.attr_embed(attr_labels)
-        if self.geometry_relation:
+        if self.geometry_relation or self.opt.relationship_weights:
             rela_embed = rela_labels
         else:
             rela_embed = self.rela_embed(rela_labels)
