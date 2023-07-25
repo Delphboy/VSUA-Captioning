@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from misc.utils import expand_feats
-from models.Gnns import GNN
+from models.Gnns import GNN, GraphAttentionNetwork
 from utils.helper import build_embeding_layer, pack_wrapper
 
 from .CaptionModel import CaptionModel
@@ -109,7 +109,8 @@ class AttModel(CaptionModel):
                 nn.Dropout(0.5),
             ]
         )
-        self.gnn = GNN(opt)
+        # self.gnn = GNN(opt)
+        self.gnn = GraphAttentionNetwork(self.rnn_size, self.rnn_size, 5, proj_rela_dim)
 
         self.ctx2att_obj = nn.Linear(self.rnn_size, self.att_hid_size)
         self.ctx2att_attr = nn.Linear(self.rnn_size, self.att_hid_size)
@@ -175,11 +176,11 @@ class AttModel(CaptionModel):
         prepare node features for each type of visual semantic units (vsus):
         obj, attr, and rela
 
-        the raw data the are needed:
-            - obj_labels: (B, No, ?)
-            - attr_labels: (B, No, ?)
+        the raw data that are needed:
+            - obj_labels: (B, No, 1)
+            - attr_labels: (B, No, 3)
             - rela_labels: (B, Nr, ?)
-            - rela_triplets: (subj_index, obj_index, rela_label) of shape (B, Nr, 3)
+            # - rela_triplets: (subj_index, obj_index, rela_label) of shape (B, Nr, 3)
             - rela_edges: LongTensor of shape (B, Nr, 2),
                         where rela_edges[b, k] = [i, j]
                         indicates the presence of the relation triple:
@@ -190,7 +191,8 @@ class AttModel(CaptionModel):
         obj_labels = sg_data["obj_labels"]
         attr_labels = sg_data["attr_labels"]
         rela_masks = sg_data["rela_masks"]
-        rela_edges, rela_labels = sg_data["rela_edges"], sg_data["rela_feats"]
+        rela_edges = sg_data["rela_edges"]
+        rela_labels = sg_data["rela_feats"]
 
         att_masks = att_masks.unsqueeze(-1)
         rela_masks = rela_masks.unsqueeze(-1)
@@ -199,13 +201,15 @@ class AttModel(CaptionModel):
         obj_embed, attr_embed, rela_embed = self._embed_vsu(
             obj_labels, attr_labels, rela_labels
         )
+
         # project node features to the same size as att_feats
         obj_vecs, attr_vecs, rela_vecs = self._proj_vsu(
             obj_embed, attr_embed, rela_embed, att_feats
         )
+
         # node embedding with simple gnns
-        obj_vecs, attr_vecs, rela_vecs = self.gnn(
-            obj_vecs, attr_vecs, rela_vecs, rela_edges, rela_masks
+        obj_vecs, attr_vecs, rela_embed = self.gnn(
+            obj_vecs, attr_vecs, rela_embed, rela_edges, rela_masks
         )
 
         return obj_vecs, attr_vecs, rela_vecs
@@ -307,6 +311,7 @@ class AttModel(CaptionModel):
         # 'it' contains a word index
         xt = self.embed(it)
 
+        # self.core is defined in VSUAModel
         output, state = self.core(xt, state, core_args)
         logprobs = F.log_softmax(self.logit(output), dim=1)
 

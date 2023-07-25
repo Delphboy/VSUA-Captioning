@@ -50,9 +50,8 @@ class GNN(nn.Module):
         new_obj_vecs = obj_vecs
 
         # attr
-        new_attr_vecs = (
-            self.gnn_attr(torch.cat([obj_vecs, attr_vecs], dim=-1)) + attr_vecs
-        )
+        concat = torch.cat([obj_vecs, attr_vecs], dim=-1)
+        new_attr_vecs = self.gnn_attr(concat) + attr_vecs
 
         # rela: get node features for each triplet <subject, relation, object>
         s_idx = edges[:, 0].contiguous()  # index of subject
@@ -75,3 +74,194 @@ class GNN(nn.Module):
         )
 
         return new_obj_vecs, new_attr_vecs, new_rela_vecs
+
+
+class GraphAttentionLayer(nn.Module):
+    """
+    ## Graph attention layer based on: https://nn.labml.ai/graphs/gat/index.html
+    """
+
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        edge_feat_dim: int,
+        n_heads: int,
+        is_concat: bool = True,
+        dropout: float = 0.6,
+        leaky_relu_negative_slope: float = 0.2,
+    ):
+        """
+        * in_features: number of input features per node
+        * out_features: number of output features per node
+        * n_heads: number of attention heads
+        * is_concat: whether the multi-head results should be concatenated or averaged
+        * dropout: dropout probability
+        * leaky_relu_negative_slope: negative slope for leaky relu activation
+        """
+        super(GraphAttentionLayer, self).__init__()
+
+        self.is_concat = is_concat
+        self.n_heads = n_heads
+
+        # Calculate the number of dimensions per head
+        if is_concat:
+            # If we are concatenating the multiple heads
+            assert out_features % n_heads == 0
+            self.n_hidden = out_features // n_heads
+        else:
+            # If we are averaging the multiple heads
+            self.n_hidden = out_features
+
+        # Linear layer for initial transformation;
+        # i.e. to transform the node embeddings before self-attention
+        self.linear = nn.Linear(in_features, self.n_hidden * n_heads, bias=False)
+        self.edge_linear = nn.Linear(edge_feat_dim, self.n_hidden * n_heads, bias=False)
+
+        # Linear layer to compute attention score
+        self.attn = nn.Linear(self.n_hidden * 3, 1, bias=False)
+
+        # The activation for attention score
+        self.activation = nn.LeakyReLU(negative_slope=leaky_relu_negative_slope)
+
+        # Softmax to compute attention weight
+        self.softmax = nn.Softmax(dim=2)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(
+        self,
+        h: torch.Tensor,
+        adj_mat: torch.Tensor,
+        edge_attr: Optional[torch.Tensor] = None,
+    ):
+        """
+        * h, is the input node embeddings of shape [n_nodes, in_features].
+        * adj_mat is the adjacency matrix of shape [n_nodes, n_nodes, n_heads].
+        We use shape [n_nodes, n_nodes, 1] since the adj is the same for each head
+        * edge_attr is the edge attributes of shape [n_edges, edge_attr_dim].
+
+        Adjacency matrix represent the edges (or connections) among nodes.
+        adj_mat[i][j] is 1 if there is an edge from node i to node j.
+        """
+        batch_size = h.shape[0]
+        num_nodes = h.shape[1]
+        num_edges = edge_attr.shape[1]
+
+        # Add a dimension for the number of heads
+        adj_mat = adj_mat.unsqueeze(-1)
+
+        # Add self-connections
+        # TODO: How to handle lack of edge features for self-connections?
+        # adj_mat = adj_mat + torch.eye(num_nodes).to(adj_mat.device).unsqueeze(-1)
+
+        assert adj_mat.shape[1] == 1 or adj_mat.shape[1] == num_nodes
+        assert adj_mat.shape[2] == 1 or adj_mat.shape[2] == num_nodes
+        assert adj_mat.shape[3] == 1 or adj_mat.shape[3] == self.n_heads
+
+        h_proj = self.linear(h).view(batch_size, num_nodes, self.n_heads, self.n_hidden)
+
+        concats = []
+        for batch in range(batch_size):
+            non_zero = torch.nonzero(adj_mat.squeeze(-1)[batch])
+            _from = h_proj[batch, non_zero[:, 0], :, :]
+            _to = h_proj[batch, non_zero[:, 1], :, :]
+            concat = torch.concat([_from, _to], dim=-1)
+
+            diff = num_edges - non_zero.shape[0]
+            pad = torch.zeros(
+                [diff, concat.shape[1], concat.shape[2]],
+                dtype=torch.long,
+                device=h.device,
+            )
+            concat = torch.cat([concat, pad], dim=0)
+            concats.append(concat)
+
+        concats = torch.stack(concats, dim=0)
+
+        if edge_attr is not None:
+            edge_features_tensor = self.edge_linear(edge_attr)
+            edge_features_tensor = edge_features_tensor.view(
+                batch_size, num_edges, self.n_heads, self.n_hidden
+            )
+            concats = torch.concat([concats, edge_features_tensor], dim=-1)
+
+        e = self.activation(self.attn(concats))
+        e = e.squeeze(-1)
+
+        # e = e.masked_fill(adj_mat == 0, float("-inf"))
+        a = self.softmax(e)
+        a = self.dropout(a)
+
+        attn_res = []
+        for batch in range(batch_size):
+            non_zero = torch.nonzero(adj_mat.squeeze(-1)[batch])
+            _from = h[batch, non_zero[:, 0], :]
+            _to = h[batch, non_zero[:, 1], :]
+            attn = a[batch, : non_zero.shape[0], :]
+            res = torch.matmul(attn, _to)
+            attn_res.append(res)
+
+        if self.is_concat:
+            return attn_res.reshape(batch_size, num_nodes, self.n_hidden * self.n_heads)
+        else:
+            return attn_res.mean(dim=2)
+
+
+class GraphAttentionNetwork(nn.Module):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        n_heads: int,
+        is_concat: bool = True,
+        dropout: float = 0.6,
+        leaky_relu_negative_slope: float = 0.2,
+        edge_feat_dim: int = 8,
+    ) -> None:
+        super(GraphAttentionNetwork, self).__init__()
+        self.layer_1 = GraphAttentionLayer(
+            in_features,
+            out_features,
+            edge_feat_dim,
+            n_heads,
+            is_concat,
+            dropout,
+            leaky_relu_negative_slope,
+        )
+        self.activation_1 = nn.ReLU()
+        self.layer_2 = GraphAttentionLayer(
+            in_features,
+            out_features,
+            edge_feat_dim,
+            n_heads,
+            is_concat,
+            dropout,
+            leaky_relu_negative_slope,
+        )
+        self.activation_2 = nn.ReLU()
+
+    def forward(
+        self,
+        obj_vecs: torch.Tensor,
+        attr_vecs: torch.Tensor,
+        rela_vecs: torch.Tensor,
+        edges: torch.Tensor,
+        rela_masks: Optional[torch.Tensor] = None,
+    ) -> tuple([torch.Tensor, torch.Tensor, torch.Tensor]):
+        # Create adjacency matrix
+        adj_mat = torch.zeros(
+            obj_vecs.shape[0], obj_vecs.shape[1], obj_vecs.shape[1]
+        ).to(obj_vecs.device)
+        adj_mat[
+            torch.arange(obj_vecs.shape[0]).unsqueeze(1),
+            edges[:, :, 0],
+            edges[:, :, 1],
+        ] = 1
+
+        obj_vecs = self.layer_1(obj_vecs, adj_mat, rela_vecs)
+        obj_vecs = self.activation_1(obj_vecs)
+
+        obj_vecs = self.layer_2(obj_vecs, adj_mat, rela_vecs)
+        obj_vecs = self.activation_2(obj_vecs)
+
+        return obj_vecs, attr_vecs, rela_vecs
