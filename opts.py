@@ -341,7 +341,8 @@ def parse_opt():
     parser.add_argument(
         "--vsua_use",
         type=str,
-        default="oar",
+        # default="oar",
+        default="ar",
         help="which types of visual semantic units to contain, o: obj, a: attr, r: rela",
     )
     parser.add_argument(
