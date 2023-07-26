@@ -158,48 +158,58 @@ class GraphAttentionLayer(nn.Module):
         assert adj_mat.shape[2] == 1 or adj_mat.shape[2] == num_nodes
         assert adj_mat.shape[3] == 1 or adj_mat.shape[3] == self.n_heads
 
-        h_proj = self.linear(h).view(batch_size, num_nodes, self.n_heads, self.n_hidden)
+        g = self.linear(h).view(batch_size, num_nodes, self.n_heads, self.n_hidden)
+        g_repeat = g.repeat(1, num_nodes, 1, 1)
+        g_repeat_interleave = g.repeat_interleave(num_nodes, dim=1)
 
-        concats = []
-        for batch in range(batch_size):
-            non_zero = torch.nonzero(adj_mat.squeeze(-1)[batch])
-            _from = h_proj[batch, non_zero[:, 0], :, :]
-            _to = h_proj[batch, non_zero[:, 1], :, :]
-            concat = torch.concat([_from, _to], dim=-1)
-
-            diff = num_edges - non_zero.shape[0]
-            pad = torch.zeros(
-                [diff, concat.shape[1], concat.shape[2]],
-                dtype=torch.long,
-                device=h.device,
-            )
-            concat = torch.cat([concat, pad], dim=0)
-            concats.append(concat)
-
-        concats = torch.stack(concats, dim=0)
+        g_concat = torch.cat([g_repeat_interleave, g_repeat], dim=-1)
 
         if edge_attr is not None:
-            edge_features_tensor = self.edge_linear(edge_attr)
-            edge_features_tensor = edge_features_tensor.view(
+            e_proj = self.edge_linear(edge_attr).view(
                 batch_size, num_edges, self.n_heads, self.n_hidden
             )
-            concats = torch.concat([concats, edge_features_tensor], dim=-1)
+            edge_feats = torch.zeros(
+                batch_size, num_nodes * num_nodes, self.n_heads, self.n_hidden
+            ).to(h.device)
+            indexes = (
+                adj_mat.squeeze(-1)
+                .view(batch_size, num_nodes * num_nodes)
+                .type(torch.int64)
+            )
 
-        e = self.activation(self.attn(concats))
+            diff = num_nodes * num_nodes - num_edges
+            pad = torch.zeros(
+                (batch_size, diff, self.n_heads, self.n_hidden), device=h.device
+            )
+            e_proj = torch.cat([e_proj, pad], dim=1)
+
+            # TODO: Can we do this without a loop?
+            for batch in range(batch_size):
+                index_edge_feat = indexes[batch].nonzero()
+
+                edge_feats[batch, index_edge_feat.view(indexes[batch].sum())] = e_proj[
+                    batch, : indexes[batch].sum(), :, :
+                ]
+
+            g_concat = torch.cat([g_concat, edge_feats], dim=-1)
+
+        c = 3 if edge_attr is not None else 2
+        g_concat = g_concat.view(
+            batch_size, num_nodes, num_nodes, self.n_heads, self.n_hidden * c
+        )
+
+        e = self.activation(self.attn(g_concat))
         e = e.squeeze(-1)
 
-        # e = e.masked_fill(adj_mat == 0, float("-inf"))
+        assert adj_mat.shape[1] == 1 or adj_mat.shape[1] == num_nodes
+        assert adj_mat.shape[2] == 1 or adj_mat.shape[2] == num_nodes
+        assert adj_mat.shape[3] == 1 or adj_mat.shape[3] == self.n_heads
+
+        e = e.masked_fill(adj_mat == 0, float("-inf"))
         a = self.softmax(e)
         a = self.dropout(a)
 
-        attn_res = []
-        for batch in range(batch_size):
-            non_zero = torch.nonzero(adj_mat.squeeze(-1)[batch])
-            _from = h[batch, non_zero[:, 0], :]
-            _to = h[batch, non_zero[:, 1], :]
-            attn = a[batch, : non_zero.shape[0], :]
-            res = torch.matmul(attn, _to)
-            attn_res.append(res)
+        attn_res = torch.einsum("bijh,bjhf->bihf", a, g)
 
         if self.is_concat:
             return attn_res.reshape(batch_size, num_nodes, self.n_hidden * self.n_heads)
