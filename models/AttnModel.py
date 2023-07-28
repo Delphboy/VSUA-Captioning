@@ -102,6 +102,7 @@ class AttModel(CaptionModel):
                 nn.Dropout(0.5),
             ]
         )
+
         # self.gnn = GNN(opt)
         self.gnn = GraphAttentionNetwork(self.rnn_size, self.rnn_size, 5, proj_rela_dim)
 
@@ -135,7 +136,7 @@ class AttModel(CaptionModel):
     ) -> tuple([torch.Tensor, torch.Tensor, torch.Tensor]):
         obj_embed = self.obj_embed(obj_labels)
         attr_embed = self.attr_embed(attr_labels)
-        if self.geometry_relation or self.opt.relationship_weights:
+        if self.geometry_relation:
             rela_embed = rela_labels
         else:
             rela_embed = self.rela_embed(rela_labels)
@@ -205,7 +206,7 @@ class AttModel(CaptionModel):
         obj_vecs, attr_vecs, rela_embed = self.gnn(
             obj_vecs,
             attr_vecs,
-            rela_embed,
+            rela_vecs,  # rela_embed,
             rela_edges,
             rela_masks,
             rela_weights,

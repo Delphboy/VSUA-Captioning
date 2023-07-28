@@ -115,7 +115,7 @@ class GraphAttentionLayer(nn.Module):
         # Linear layer for initial transformation;
         # i.e. to transform the node embeddings before self-attention
         self.linear = nn.Linear(in_features, self.n_hidden * n_heads, bias=False)
-        self.edge_linear = nn.Linear(edge_feat_dim, self.n_hidden * n_heads, bias=False)
+        self.edge_linear = nn.Linear(in_features, self.n_hidden * n_heads, bias=False)
 
         # Linear layer to compute attention score
         self.attn = nn.Linear(self.n_hidden * 3, 1, bias=False)
@@ -245,13 +245,11 @@ class GraphAttentionNetwork(nn.Module):
         is_concat: bool = True,
         dropout: float = 0.6,
         leaky_relu_negative_slope: float = 0.2,
-        edge_feat_dim: int = 8,
     ) -> None:
         super(GraphAttentionNetwork, self).__init__()
         self.layer_1 = GraphAttentionLayer(
             in_features,
             out_features,
-            edge_feat_dim,
             n_heads,
             is_concat,
             dropout,
@@ -261,7 +259,6 @@ class GraphAttentionNetwork(nn.Module):
         self.layer_2 = GraphAttentionLayer(
             in_features,
             out_features,
-            edge_feat_dim,
             n_heads,
             is_concat,
             dropout,
