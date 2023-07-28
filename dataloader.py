@@ -293,6 +293,8 @@ class DataLoader(data.Dataset):
             for batch_idx in range(sg_data["rela_edges"].shape[0]):
                 weights = []
                 batch = sg_data["rela_edges"][batch_idx]
+                mask = sg_data["rela_masks"][batch_idx]
+                batch = batch[mask == 1]
                 for rela_idx in range(len(batch)):
                     rela = batch[rela_idx]
                     _from = rela[0]
@@ -303,14 +305,14 @@ class DataLoader(data.Dataset):
                     # Do I need to do _from - 1???
                     obj2 = sg_data["obj_labels"][batch_idx][_to].item()
                     key = f"({obj1}, {obj2})"
-                    weights.append(self.relationship_weights.get(key, 0.0))
+                    weights.append(self.relationship_weights.get(key, 1.0))
+                while len(weights) < sg_data["rela_edges"][batch_idx].shape[0]:
+                    weights.append(0.0)
                 weights_batch.append(weights)
             wbt = torch.tensor(weights_batch).unsqueeze(2)
 
-            if len(sg_data["rela_feats"].shape) == 2:
-                sg_data["rela_feats"] = sg_data["rela_feats"].unsqueeze(-1)
-
-            sg_data["rela_feats"] = torch.cat([sg_data["rela_feats"], wbt], dim=2)
+            sg_data["rela_weights"] = wbt
+            sg_data["rela_weights"] = sg_data["rela_weights"].numpy()
             sg_data["rela_feats"] = sg_data["rela_feats"].numpy()
 
         return sg_data

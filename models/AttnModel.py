@@ -88,16 +88,9 @@ class AttModel(CaptionModel):
         )
 
         if self.opt.geometry_relation:
-            proj_rela_dim = (
-                self.opt.geometry_rela_feat_dim + 1
-                if self.opt.relationship_weights
-                else self.opt.geometry_rela_feat_dim
-            )
+            proj_rela_dim = self.opt.geometry_rela_feat_dim
         else:
-            if self.opt.relationship_weights:
-                proj_rela_dim = 2
-            else:
-                proj_rela_dim = self.sg_label_embed_size
+            proj_rela_dim = self.sg_label_embed_size
 
         self.proj_rela = nn.Sequential(
             *[
@@ -193,6 +186,7 @@ class AttModel(CaptionModel):
         rela_masks = sg_data["rela_masks"]
         rela_edges = sg_data["rela_edges"]
         rela_labels = sg_data["rela_feats"]
+        rela_weights = sg_data.get("rela_weights", None)
 
         att_masks = att_masks.unsqueeze(-1)
         rela_masks = rela_masks.unsqueeze(-1)
@@ -209,7 +203,12 @@ class AttModel(CaptionModel):
 
         # node embedding with simple gnns
         obj_vecs, attr_vecs, rela_embed = self.gnn(
-            obj_vecs, attr_vecs, rela_embed, rela_edges, rela_masks
+            obj_vecs,
+            attr_vecs,
+            rela_embed,
+            rela_edges,
+            rela_masks,
+            rela_weights,
         )
 
         return obj_vecs, attr_vecs, rela_vecs

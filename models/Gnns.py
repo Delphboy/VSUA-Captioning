@@ -100,7 +100,6 @@ class GraphAttentionLayer(nn.Module):
         * leaky_relu_negative_slope: negative slope for leaky relu activation
         """
         super(GraphAttentionLayer, self).__init__()
-
         self.is_concat = is_concat
         self.n_heads = n_heads
 
@@ -133,6 +132,7 @@ class GraphAttentionLayer(nn.Module):
         h: torch.Tensor,
         adj_mat: torch.Tensor,
         edge_attr: Optional[torch.Tensor] = None,
+        rela_weights: Optional[torch.Tensor] = None,
     ):
         """
         * h, is the input node embeddings of shape [n_nodes, in_features].
@@ -164,38 +164,36 @@ class GraphAttentionLayer(nn.Module):
 
         g_concat = torch.cat([g_repeat_interleave, g_repeat], dim=-1)
 
-        if edge_attr is not None:
-            e_proj = self.edge_linear(edge_attr).view(
-                batch_size, num_edges, self.n_heads, self.n_hidden
-            )
-            edge_feats = torch.zeros(
-                batch_size, num_nodes * num_nodes, self.n_heads, self.n_hidden
-            ).to(h.device)
-            indexes = (
-                adj_mat.squeeze(-1)
-                .view(batch_size, num_nodes * num_nodes)
-                .type(torch.int64)
-            )
+        e_proj = self.edge_linear(edge_attr).view(
+            batch_size, num_edges, self.n_heads, self.n_hidden
+        )
+        edge_feats = torch.zeros(
+            batch_size, num_nodes * num_nodes, self.n_heads, self.n_hidden
+        ).to(h.device)
+        indexes = (
+            adj_mat.squeeze(-1)
+            .view(batch_size, num_nodes * num_nodes)
+            .type(torch.int64)
+        )
 
-            diff = num_nodes * num_nodes - num_edges
-            pad = torch.zeros(
-                (batch_size, diff, self.n_heads, self.n_hidden), device=h.device
-            )
-            e_proj = torch.cat([e_proj, pad], dim=1)
+        diff = num_nodes * num_nodes - num_edges
+        pad = torch.zeros(
+            (batch_size, diff, self.n_heads, self.n_hidden), device=h.device
+        )
+        e_proj = torch.cat([e_proj, pad], dim=1)
 
-            # TODO: Can we do this without a loop?
-            for batch in range(batch_size):
-                index_edge_feat = indexes[batch].nonzero()
+        # TODO: Can we do this without a loop?
+        for batch in range(batch_size):
+            index_edge_feat = indexes[batch].nonzero()
 
-                edge_feats[batch, index_edge_feat.view(indexes[batch].sum())] = e_proj[
-                    batch, : indexes[batch].sum(), :, :
-                ]
+            edge_feats[batch, index_edge_feat.view(indexes[batch].sum())] = e_proj[
+                batch, : indexes[batch].sum(), :, :
+            ]
 
-            g_concat = torch.cat([g_concat, edge_feats], dim=-1)
+        g_concat = torch.cat([g_concat, edge_feats], dim=-1)
 
-        c = 3 if edge_attr is not None else 2
         g_concat = g_concat.view(
-            batch_size, num_nodes, num_nodes, self.n_heads, self.n_hidden * c
+            batch_size, num_nodes, num_nodes, self.n_heads, self.n_hidden * 3
         )
 
         e = self.activation(self.attn(g_concat))
@@ -208,6 +206,27 @@ class GraphAttentionLayer(nn.Module):
         e = e.masked_fill(adj_mat == 0, float("-inf"))
         a = self.softmax(e)
         a = self.dropout(a)
+
+        if rela_weights is not None:
+            # TODO: Rename this as rela_weights exists
+            rel_weights = torch.zeros((batch_size, num_nodes * num_nodes, 1)).to(
+                h.device
+            )
+
+            for batch in range(batch_size):
+                index_edge_feat = indexes[batch].nonzero()
+
+                rel_weights[
+                    batch, index_edge_feat.view(indexes[batch].sum())
+                ] = rela_weights[batch, : indexes[batch].sum()]
+
+            rel_weights = (
+                rel_weights.unsqueeze(-1)
+                .repeat(1, 1, self.n_heads, 1)
+                .view(batch_size, num_nodes, num_nodes, self.n_heads)
+            )
+
+            a = torch.mul(a, rel_weights)
 
         attn_res = torch.einsum("bijh,bjhf->bihf", a, g)
 
@@ -257,6 +276,7 @@ class GraphAttentionNetwork(nn.Module):
         rela_vecs: torch.Tensor,
         edges: torch.Tensor,
         rela_masks: Optional[torch.Tensor] = None,
+        rela_weights: Optional[torch.Tensor] = None,
     ) -> tuple([torch.Tensor, torch.Tensor, torch.Tensor]):
         # Create adjacency matrix
         adj_mat = torch.zeros(
@@ -268,10 +288,10 @@ class GraphAttentionNetwork(nn.Module):
             edges[:, :, 1],
         ] = 1
 
-        obj_vecs = self.layer_1(obj_vecs, adj_mat, rela_vecs)
+        obj_vecs = self.layer_1(obj_vecs, adj_mat, rela_vecs, rela_weights)
         obj_vecs = self.activation_1(obj_vecs)
 
-        obj_vecs = self.layer_2(obj_vecs, adj_mat, rela_vecs)
+        obj_vecs = self.layer_2(obj_vecs, adj_mat, rela_vecs, rela_weights)
         obj_vecs = self.activation_2(obj_vecs)
 
         return obj_vecs, attr_vecs, rela_vecs
