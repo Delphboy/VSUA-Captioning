@@ -203,7 +203,7 @@ class GraphAttentionLayer(nn.Module):
         assert adj_mat.shape[2] == 1 or adj_mat.shape[2] == num_nodes
         assert adj_mat.shape[3] == 1 or adj_mat.shape[3] == self.n_heads
 
-        e = e.masked_fill(adj_mat == 0, float("-inf"))
+        e = e.masked_fill(adj_mat == 0, -1000)
         a = self.softmax(e)
         a = self.dropout(a)
 
