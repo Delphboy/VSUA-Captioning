@@ -104,7 +104,9 @@ class AttModel(CaptionModel):
         )
 
         # self.gnn = GNN(opt)
-        self.gnn = GraphAttentionNetwork(self.rnn_size, self.rnn_size, 5, proj_rela_dim)
+        self.gnn = GraphAttentionNetwork(
+            in_features=self.rnn_size, out_features=self.rnn_size, n_heads=5
+        )
 
         self.ctx2att_obj = nn.Linear(self.rnn_size, self.att_hid_size)
         self.ctx2att_attr = nn.Linear(self.rnn_size, self.att_hid_size)
