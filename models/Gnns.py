@@ -245,6 +245,7 @@ class GraphAttentionNetwork(nn.Module):
         is_concat: bool = True,
         dropout: float = 0.6,
         leaky_relu_negative_slope: float = 0.2,
+        opt=None,
     ) -> None:
         super(GraphAttentionNetwork, self).__init__()
         self.layer_1 = GraphAttentionLayer(
@@ -265,11 +266,7 @@ class GraphAttentionNetwork(nn.Module):
             leaky_relu_negative_slope,
         )
         self.activation_2 = nn.ReLU()
-        self.gnn_attr = nn.Sequential(
-            nn.Linear(in_features * 2, out_features),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.1),
-        )
+        self.gnn = GNN(opt)
 
     def forward(
         self,
@@ -293,10 +290,7 @@ class GraphAttentionNetwork(nn.Module):
         obj_vecs = self.layer_1(obj_vecs, adj_mat, rela_vecs, rela_weights)
         obj_vecs = self.activation_1(obj_vecs)
 
-        obj_vecs = self.layer_2(obj_vecs, adj_mat, rela_vecs, rela_weights)
-        obj_vecs = self.activation_2(obj_vecs)
+        # obj_vecs = self.layer_2(obj_vecs, adj_mat, rela_vecs, rela_weights)
+        # obj_vecs = self.activation_2(obj_vecs)
 
-        concat = torch.cat([obj_vecs, attr_vecs], dim=-1)
-        new_attr_vecs = self.gnn_attr(concat) + attr_vecs
-
-        return obj_vecs, new_attr_vecs, rela_vecs
+        return self.gnn(obj_vecs, attr_vecs, rela_vecs, edges, rela_masks)
