@@ -1,5 +1,6 @@
 import argparse
 import os
+import random
 
 import numpy as np
 import torch
@@ -365,10 +366,24 @@ def parse_opt():
         help="location of the relationship weights",
     )
     parser.add_argument(
-        "--fixed_seed", type=str2bool, default=True, help="whether to use fixed seed"
+        "--fixed_seed",
+        type=int,
+        default=-1,
+        help="Use a fixed seed: -1 means no, >= 0 uses that as seed",
     )
 
     args = parser.parse_args()
+
+    if args.fixed_seed > -1:
+        seed = args.fixed_seed
+        print(f"[INFO] Using fixed seed {seed}")
+        np.random.seed(seed)
+        random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+        args.id = f"{args.id}-seed-{seed}"
 
     if args.checkpoint_path == "":
         args.checkpoint_path = os.path.join(args.checkpoint_root, args.id)
@@ -382,11 +397,6 @@ def parse_opt():
     if args.resume_from:
         path = os.path.join(args.checkpoint_root, args.resume_from)
         assert os.path.exists(path), "%s not exists" % args.resume_from
-
-    if args.fixed_seed:
-        np.random.seed(0)
-        torch.manual_seed(0)
-        torch.cuda.manual_seed_all(0)
 
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
     print("[INFO] set CUDA_VISIBLE_DEVICES = %s" % args.gpus)
