@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from misc.utils import expand_feats
-from models.Gnns import GNN, GraphAttentionNetwork
+from models.Gnns import GNN, GraphAttentionNetwork, GraphConvolutionalNetwork
 from utils.helper import build_embeding_layer, pack_wrapper
 
 from .CaptionModel import CaptionModel
@@ -104,8 +104,11 @@ class AttModel(CaptionModel):
         )
 
         # self.gnn = GNN(opt)
-        self.gnn = GraphAttentionNetwork(
-            in_features=self.rnn_size, out_features=self.rnn_size, n_heads=5, opt=opt
+        # self.gnn = GraphAttentionNetwork(
+        #     in_features=self.rnn_size, out_features=self.rnn_size, n_heads=5, opt=opt
+        # )
+        self.gnn = GraphConvolutionalNetwork(
+            in_features=self.rnn_size, out_features=self.rnn_size, opt=opt
         )
 
         self.ctx2att_obj = nn.Linear(self.rnn_size, self.att_hid_size)

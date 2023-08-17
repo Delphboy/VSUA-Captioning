@@ -294,3 +294,62 @@ class GraphAttentionNetwork(nn.Module):
         # obj_vecs = self.activation_2(obj_vecs)
 
         return self.gnn(obj_vecs, attr_vecs, rela_vecs, edges, rela_masks)
+
+
+class GraphConvolutionalLayer(nn.Module):
+    def __init__(self, in_features: int, out_features: int) -> None:
+        super(GraphConvolutionalLayer, self).__init__()
+        self.linear = nn.Linear(in_features, out_features)
+
+    def forward(
+        self,
+        h: torch.Tensor,
+        adj_mat: torch.Tensor,
+    ) -> torch.Tensor:
+        h = self.linear(h)
+        h = torch.matmul(adj_mat, h)
+
+        return h
+
+
+class GraphConvolutionalNetwork(nn.Module):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        opt=None,
+    ) -> None:
+        super(GraphConvolutionalNetwork, self).__init__()
+        self.layer_1 = GraphConvolutionalLayer(in_features, out_features)
+        self.activation_1 = nn.ReLU()
+        self.layer_2 = GraphConvolutionalLayer(in_features, out_features)
+        self.activation_2 = nn.ReLU()
+        self.gnn = GNN(opt)
+
+    def forward(
+        self,
+        obj_vecs: torch.Tensor,
+        attr_vecs: torch.Tensor,
+        rela_vecs: torch.Tensor,
+        edges: torch.Tensor,
+        rela_masks: Optional[torch.Tensor] = None,
+        rela_weights: Optional[torch.Tensor] = None,
+    ) -> tuple([torch.Tensor, torch.Tensor, torch.Tensor]):
+        # Create adjacency matrix
+        adj_mat = torch.zeros(
+            obj_vecs.shape[0], obj_vecs.shape[1], obj_vecs.shape[1]
+        ).to(obj_vecs.device)
+        adj_mat[
+            torch.arange(obj_vecs.shape[0]).unsqueeze(1),
+            edges[:, :, 0],
+            edges[:, :, 1],
+        ] = 1
+
+        obj_vecs = self.layer_1(obj_vecs, adj_mat)
+        obj_vecs = self.activation_1(obj_vecs)
+
+        obj_vecs = self.layer_2(obj_vecs, adj_mat)
+        obj_vecs = self.activation_2(obj_vecs)
+
+        return obj_vecs, attr_vecs, rela_vecs
+        # return self.gnn(obj_vecs, attr_vecs, rela_vecs, edges, rela_masks)
