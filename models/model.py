@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.AttnModel import AttModel
+from models.attn_model import AttModel
 
 """
 The OARs/Rg model proposed in our paper: 
@@ -57,9 +57,9 @@ class Attention(nn.Module):
         return att_res
 
 
-class VSUACore(nn.Module):
+class Core(nn.Module):
     def __init__(self, opt: Namespace, use_maxout: bool = False) -> None:
-        super(VSUACore, self).__init__()
+        super(Core, self).__init__()
         self.opt = opt
         self.drop_prob_lm = opt.drop_prob_lm
 
@@ -119,10 +119,10 @@ class VSUACore(nn.Module):
         return output, state
 
 
-class VSUAModel(AttModel):
+class Model(AttModel):
     def __init__(self, opt: Namespace) -> None:
-        super(VSUAModel, self).__init__(opt)
+        super(Model, self).__init__(opt)
         self.num_layers = 2
-        self.core = VSUACore(opt)
-        self.core = VSUACore(opt)
-        self.core = VSUACore(opt)
+        self.core = Core(opt)
+        self.core = Core(opt)
+        self.core = Core(opt)

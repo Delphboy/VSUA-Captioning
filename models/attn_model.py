@@ -8,10 +8,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from misc.utils import expand_feats
-from models.Gnns import GNN, GraphAttentionNetwork, GraphConvolutionalNetwork
+from models.gnns import GNN, GraphAttentionNetwork, GraphConvolutionalNetwork
 from utils.helper import build_embeding_layer, pack_wrapper
 
-from .CaptionModel import CaptionModel
+from .caption_model import CaptionModel
 
 
 class AttModel(CaptionModel):

@@ -1,23 +1,6 @@
 
-# [Aligning Linguistic Words and Visual Semantic Units for Image Captioning](https://arxiv.org/pdf/1908.02127.pdf)
+# Using Language Priors to Enhance Graph Neural Networks for Image Captioning
 
-## Introduction
-VSUA model represents images as structured graphs where nodes are the so-called Visual Semantic Units (VSUs): object, attribute, and relationship units. Our VSUA model makes use of the alignment nature between caption words and VSUs.
-
-<p align="center">
-  <img src="vsua.jpg" width="60%" title="introduction image">
-</p>
-
-## Citation
-
-If you find this code useful in your research then please cite
-```
-@inproceedings{guo2019vsua,
- title={Aligning Linguistic Words and Visual Semantic Units for Image Captioning},
- author={Longteng Guo, Jing Liu, Jinhui Tang, Jiangwei Li, Wei Luo, and Hanqing Lu},
- booktitle={ACM MM},
- year={2019}}
-```
 ## Requirements
 - Cuda-enabled GPU
 - Python 2.7, and PyTorch >= 0.4
@@ -25,8 +8,7 @@ If you find this code useful in your research then please cite
 - Optionally:
 	- [coco-caption](https://github.com/tylin/coco-caption) (already been added as a submodule): If you'd like to evaluate BLEU/METEOR/CIDEr scores
 	- [tensorboardX](https://github.com/lanpa/tensorboardX): If you want to visualize the loss histories (needs to install TensorFlow).
-	
-To install all submodules: `git clone --recursive https://github.com/ltguo19/VSUA-Captioning.git`
+- See `requirements.txt` for a full list
 
 ## Prepare Data
 For more details and other dataset, see [ruotianluo/self-critical.pytorch](https://github.com/ruotianluo/self-critical.pytorch/blob/master/data/README.md)
@@ -101,5 +83,7 @@ python train.py --gpus 0 --id experiment-rl --geometry_relation True --learning_
 - For more options, see `opts.py`. And see [self-critical.pytorch](https://github.com/ruotianluo/self-critical.pytorch) for more training guidance.
 
 ## Acknowledgement
-This code is modified from Ruotian Luo's brilliant image captioning repo [ruotianluo/self-critical.pytorch](https://github.com/ruotianluo/self-critical.pytorch).  We use the visual features provided by Bottom-Up   [peteanderson80/bottom-up-attention](https://github.com/peteanderson80/bottom-up-attention), and the scene graph data provided by [yangxuntu/SGAE](https://github.com/yangxuntu/SGAE). Thanks for their works!
-If you find this code helpful, please consider citing their corresponding papers and our paper.
+This code is modified from Ruotian Luo's brilliant image captioning repo [ruotianluo/self-critical.pytorch](https://github.com/ruotianluo/self-critical.pytorch).  We use the visual features provided by Bottom-Up   [peteanderson80/bottom-up-attention](https://github.com/peteanderson80/bottom-up-attention), and the scene graph data provided by [yangxuntu/SGAE](https://github.com/yangxuntu/SGAE). We also use the [ltguo19/VSUA](https://github.com/ltguo19/VSUA-Captioning) code as an initial base.
+
+Thanks for their works!
+
