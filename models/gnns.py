@@ -54,20 +54,20 @@ class GNN(nn.Module):
         new_attr_vecs = self.gnn_attr(concat) + attr_vecs
 
         # rela: get node features for each triplet <subject, relation, object>
-        s_idx = edges[:, 0].contiguous()  # index of subject
-        s_vecs = obj_vecs[s_idx]
+        subject_idx = edges[:, 0].contiguous()  # index of subject
+        subject_vecs = obj_vecs[subject_idx]
 
-        o_idx = edges[:, 1].contiguous()  # index of object
-        o_vecs = obj_vecs[o_idx]
+        object_idx = edges[:, 1].contiguous()  # index of object
+        object_vecs = obj_vecs[object_idx]
 
-        if self.opt.rela_gnn_type == 0:
-            t_vecs = torch.cat([s_vecs, rela_vecs, o_vecs], dim=1)
+        if self.opt.rela_gnn_type == 0:  # Default
+            triplet_vecs = torch.cat([subject_vecs, rela_vecs, object_vecs], dim=1)
         elif self.opt.rela_gnn_type == 1:
-            t_vecs = torch.cat([s_vecs + o_vecs, rela_vecs], dim=1)
+            triplet_vecs = torch.cat([subject_vecs + object_vecs, rela_vecs], dim=1)
         else:
             raise NotImplementedError()
 
-        new_rela_vecs = self.gnn_rela(t_vecs) + rela_vecs
+        new_rela_vecs = self.gnn_rela(triplet_vecs) + rela_vecs
 
         new_obj_vecs, new_attr_vecs, new_rela_vecs = helper.feat_2d_to_3d(
             new_obj_vecs, new_attr_vecs, new_rela_vecs, rela_masks, ori_shape
@@ -244,7 +244,7 @@ class GraphAttentionNetwork(nn.Module):
         n_heads: int,
         is_concat: bool = True,
         dropout: float = 0.6,
-        leaky_relu_negative_slope: float = 0.2,
+        leaky_relu_negative_slope: float = 0.1,
         opt=None,
     ) -> None:
         super(GraphAttentionNetwork, self).__init__()
@@ -256,7 +256,7 @@ class GraphAttentionNetwork(nn.Module):
             dropout,
             leaky_relu_negative_slope,
         )
-        self.activation_1 = nn.ReLU()
+        self.activation_1 = nn.LeakyReLU(leaky_relu_negative_slope)
         self.layer_2 = GraphAttentionLayer(
             in_features,
             out_features,
@@ -265,7 +265,7 @@ class GraphAttentionNetwork(nn.Module):
             dropout,
             leaky_relu_negative_slope,
         )
-        self.activation_2 = nn.ReLU()
+        self.activation_2 = nn.LeakyReLU(leaky_relu_negative_slope)
         self.gnn = GNN(opt)
 
     def forward(
@@ -277,6 +277,11 @@ class GraphAttentionNetwork(nn.Module):
         rela_masks: Optional[torch.Tensor] = None,
         rela_weights: Optional[torch.Tensor] = None,
     ) -> tuple([torch.Tensor, torch.Tensor, torch.Tensor]):
+        # Update attributes and relations
+        obj_vecs, attr_vecs, rela_vecs = self.gnn(
+            obj_vecs, attr_vecs, rela_vecs, edges, rela_masks
+        )
+
         # Create adjacency matrix
         adj_mat = torch.zeros(
             obj_vecs.shape[0], obj_vecs.shape[1], obj_vecs.shape[1]
@@ -293,7 +298,7 @@ class GraphAttentionNetwork(nn.Module):
         # obj_vecs = self.layer_2(obj_vecs, adj_mat, rela_vecs, rela_weights)
         # obj_vecs = self.activation_2(obj_vecs)
 
-        return self.gnn(obj_vecs, attr_vecs, rela_vecs, edges, rela_masks)
+        return obj_vecs, attr_vecs, rela_vecs
 
 
 class GraphConvolutionalLayer(nn.Module):
@@ -351,5 +356,5 @@ class GraphConvolutionalNetwork(nn.Module):
         obj_vecs = self.layer_2(obj_vecs, adj_mat)
         obj_vecs = self.activation_2(obj_vecs)
 
-        return obj_vecs, attr_vecs, rela_vecs
-        # return self.gnn(obj_vecs, attr_vecs, rela_vecs, edges, rela_masks)
+        # return obj_vecs, attr_vecs, rela_vecs
+        return self.gnn(obj_vecs, attr_vecs, rela_vecs, edges, rela_masks)
