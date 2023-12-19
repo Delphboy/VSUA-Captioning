@@ -45,6 +45,12 @@ def parse_opt():
         help="path to the h5file containing the preprocessed dataset",
     )
     parser.add_argument(
+        "--objectid_to_cocotalkid",
+        type=str,
+        default="data/objectid_to_cocotalkid.npz",
+        help="The path to the dictionary mapping object id to coco talk id",
+    )
+    parser.add_argument(
         "--train_only", type=int, default=0, help="if true then use 80k, else use 110k"
     )
     parser.add_argument(

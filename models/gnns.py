@@ -85,7 +85,6 @@ class GraphAttentionLayer(nn.Module):
         self,
         in_features: int,
         out_features: int,
-        edge_feat_dim: int,
         n_heads: int,
         is_concat: bool = True,
         dropout: float = 0.6,
@@ -118,6 +117,9 @@ class GraphAttentionLayer(nn.Module):
         self.edge_linear = nn.Linear(in_features, self.n_hidden * n_heads, bias=False)
 
         # Linear layer to compute attention score
+        self.weight_score = nn.Sequential(
+            nn.Linear(self.n_hidden * 2, 1, bias=False), nn.ReLU()
+        )
         self.attn = nn.Linear(self.n_hidden * 3, 1, bias=False)
 
         # The activation for attention score
@@ -132,7 +134,7 @@ class GraphAttentionLayer(nn.Module):
         h: torch.Tensor,
         adj_mat: torch.Tensor,
         edge_attr: Optional[torch.Tensor] = None,
-        rela_weights: Optional[torch.Tensor] = None,
+        obj_embds: Optional[torch.Tensor] = None,
     ):
         """
         * h, is the input node embeddings of shape [n_nodes, in_features].
@@ -158,12 +160,13 @@ class GraphAttentionLayer(nn.Module):
         assert adj_mat.shape[2] == 1 or adj_mat.shape[2] == num_nodes
         assert adj_mat.shape[3] == 1 or adj_mat.shape[3] == self.n_heads
 
+        # Nodes
         g = self.linear(h).view(batch_size, num_nodes, self.n_heads, self.n_hidden)
         g_repeat = g.repeat(1, num_nodes, 1, 1)
         g_repeat_interleave = g.repeat_interleave(num_nodes, dim=1)
-
         g_concat = torch.cat([g_repeat_interleave, g_repeat], dim=-1)
 
+        # Edges
         e_proj = self.edge_linear(edge_attr).view(
             batch_size, num_edges, self.n_heads, self.n_hidden
         )
@@ -196,37 +199,28 @@ class GraphAttentionLayer(nn.Module):
             batch_size, num_nodes, num_nodes, self.n_heads, self.n_hidden * 3
         )
 
+        # Compute attention score
         e = self.activation(self.attn(g_concat))
         e = e.squeeze(-1)
 
-        assert adj_mat.shape[1] == 1 or adj_mat.shape[1] == num_nodes
-        assert adj_mat.shape[2] == 1 or adj_mat.shape[2] == num_nodes
-        assert adj_mat.shape[3] == 1 or adj_mat.shape[3] == self.n_heads
+        # Weights from Object Label Embeddings
+        if obj_embds is not None:
+            obj_embds = obj_embds.view(
+                batch_size, num_nodes, self.n_heads, self.n_hidden
+            )
+            obj_embds_repeat = obj_embds.repeat(1, num_nodes, 1, 1)
+            obj_embds_repeat_interleave = obj_embds.repeat_interleave(num_nodes, dim=1)
+            obj_embds_concat = torch.cat(
+                [obj_embds_repeat_interleave, obj_embds_repeat], dim=-1
+            ).view(batch_size, num_nodes, num_nodes, self.n_heads, self.n_hidden * 2)
+
+            weights_score = self.weight_score(obj_embds_concat).squeeze(-1)
+
+            e = e * weights_score
 
         e = e.masked_fill(adj_mat == 0, -1000)
         a = self.softmax(e)
         a = self.dropout(a)
-
-        if rela_weights is not None:
-            # TODO: Rename this as rela_weights exists
-            rel_weights = torch.zeros((batch_size, num_nodes * num_nodes, 1)).to(
-                h.device
-            )
-
-            for batch in range(batch_size):
-                index_edge_feat = indexes[batch].nonzero()
-
-                rel_weights[
-                    batch, index_edge_feat.view(indexes[batch].sum())
-                ] = rela_weights[batch, : indexes[batch].sum()]
-
-            rel_weights = (
-                rel_weights.unsqueeze(-1)
-                .repeat(1, 1, self.n_heads, 1)
-                .view(batch_size, num_nodes, num_nodes, self.n_heads)
-            )
-
-            a = torch.mul(a, rel_weights)
 
         attn_res = torch.einsum("bijh,bjhf->bihf", a, g)
 
@@ -275,7 +269,7 @@ class GraphAttentionNetwork(nn.Module):
         rela_vecs: torch.Tensor,
         edges: torch.Tensor,
         rela_masks: Optional[torch.Tensor] = None,
-        rela_weights: Optional[torch.Tensor] = None,
+        obj_embds: Optional[torch.Tensor] = None,
     ) -> tuple([torch.Tensor, torch.Tensor, torch.Tensor]):
         # Update attributes and relations
         obj_vecs, attr_vecs, rela_vecs = self.gnn(
@@ -292,7 +286,7 @@ class GraphAttentionNetwork(nn.Module):
             edges[:, :, 1],
         ] = 1
 
-        obj_vecs = self.layer_1(obj_vecs, adj_mat, rela_vecs, rela_weights)
+        obj_vecs = self.layer_1(obj_vecs, adj_mat, rela_vecs, obj_embds)
         obj_vecs = self.activation_1(obj_vecs)
 
         # obj_vecs = self.layer_2(obj_vecs, adj_mat, rela_vecs, rela_weights)

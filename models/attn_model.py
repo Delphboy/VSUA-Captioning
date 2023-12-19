@@ -104,12 +104,12 @@ class AttModel(CaptionModel):
         )
 
         # self.gnn = GNN(opt)
-        # self.gnn = GraphAttentionNetwork(
-        #     in_features=self.rnn_size, out_features=self.rnn_size, n_heads=5, opt=opt
-        # )
-        self.gnn = GraphConvolutionalNetwork(
-            in_features=self.rnn_size, out_features=self.rnn_size, opt=opt
+        self.gnn = GraphAttentionNetwork(
+            in_features=self.rnn_size, out_features=self.rnn_size, n_heads=5, opt=opt
         )
+        # self.gnn = GraphConvolutionalNetwork(
+        #     in_features=self.rnn_size, out_features=self.rnn_size, opt=opt
+        # )
 
         self.ctx2att_obj = nn.Linear(self.rnn_size, self.att_hid_size)
         self.ctx2att_attr = nn.Linear(self.rnn_size, self.att_hid_size)
@@ -187,12 +187,12 @@ class AttModel(CaptionModel):
                         i.e. the k-th relation of the b-th sample which is between the
                         i-th and j-th objects
         """
-        obj_labels = sg_data["obj_labels"]
+        obj_labels = sg_data["obj_labels"]  # Need to convert these to vocab
         attr_labels = sg_data["attr_labels"]
         rela_masks = sg_data["rela_masks"]
         rela_edges = sg_data["rela_edges"]
         rela_labels = sg_data["rela_feats"]
-        rela_weights = sg_data.get("rela_weights", None)
+        obj_embds = sg_data.get("embds", None)
 
         att_masks = att_masks.unsqueeze(-1)
         rela_masks = rela_masks.unsqueeze(-1)
@@ -214,7 +214,7 @@ class AttModel(CaptionModel):
             rela_vecs,  # rela_embed,
             rela_edges,
             rela_masks,
-            rela_weights,
+            obj_embds,
         )
 
         return obj_vecs, attr_vecs, rela_vecs
@@ -258,6 +258,28 @@ class AttModel(CaptionModel):
         ]
         return core_args
 
+    def _create_node_weight_predictor_embeddings(self, sg_data: dict) -> torch.Tensor:
+        """
+        create node embeddings for node weight prediction task
+        """
+        obj_labels = sg_data["obj_labels"]
+        dictionary = sg_data["dict"]
+
+        # Conversion from SGAE obj_labels to COCO talk
+        obj_labels = obj_labels.squeeze(-1)
+        obj_labels = obj_labels.view(-1)
+        obj_labels = obj_labels.tolist()
+        # 9487 is the index of UNK
+        obj_labels = [dictionary.get(obj_label, 9487) for obj_label in obj_labels]
+        obj_labels = torch.tensor(obj_labels, dtype=torch.long).to(
+            sg_data["obj_labels"].device
+        )
+        obj_labels = obj_labels.view(sg_data["obj_labels"].size())
+
+        # Create embeddings
+        obj_embed = self.embed(obj_labels)
+        return obj_embed.squeeze(2)
+
     def _forward(
         self,
         sg_data: dict,
@@ -266,6 +288,9 @@ class AttModel(CaptionModel):
         seq: torch.Tensor,
         att_masks=Optional[torch.Tensor],
     ) -> torch.Tensor:
+        if sg_data["dict"] is not None:
+            sg_data["embds"] = self._create_node_weight_predictor_embeddings(sg_data)
+
         core_args = self.prepare_core_args(sg_data, fc_feats, att_feats, att_masks)
         # make seq_per_img copies of the encoded inputs:
         # shape: (B, ...) => (B*seq_per_image, ...)

@@ -284,36 +284,12 @@ class DataLoader(data.Dataset):
             ]
             sg_data["rela_masks"][i, : rela_batch[i]["edges"].shape[0]] = 1
 
-        if self.opt.relationship_weights:
-            sg_data["rela_feats"] = torch.tensor(sg_data["rela_feats"])
-            # Need to create a vector of weights for each relationship
-            # that can be concated to the rela_feats so that it's a 9-dim vector
-            # for each relationship (including no relationship)
-            weights_batch = []
-            for batch_idx in range(sg_data["rela_edges"].shape[0]):
-                weights = []
-                batch = sg_data["rela_edges"][batch_idx]
-                mask = sg_data["rela_masks"][batch_idx]
-                batch = batch[mask == 1]
-                for rela_idx in range(len(batch)):
-                    rela = batch[rela_idx]
-                    _from = rela[0]
-                    _to = rela[1]
-
-                    obj1 = sg_data["obj_labels"][batch_idx][_from].item()
-                    # BUG: index 45 is out of bounds for axis 0 with size 45
-                    # Do I need to do _from - 1???
-                    obj2 = sg_data["obj_labels"][batch_idx][_to].item()
-                    key = f"({obj1}, {obj2})"
-                    weights.append(self.relationship_weights.get(key, 1.0))
-                while len(weights) < sg_data["rela_edges"][batch_idx].shape[0]:
-                    weights.append(0.0)
-                weights_batch.append(weights)
-            wbt = torch.tensor(weights_batch).unsqueeze(2)
-
-            sg_data["rela_weights"] = wbt
-            sg_data["rela_weights"] = sg_data["rela_weights"].numpy()
-            sg_data["rela_feats"] = sg_data["rela_feats"].numpy()
+        if self.opt.objectid_to_cocotalkid:
+            sg_data["dict"] = np.load(
+                self.opt.objectid_to_cocotalkid, allow_pickle=True
+            )["mapping"][()]
+        else:
+            sg_data["dict"] = None
 
         return sg_data
 
