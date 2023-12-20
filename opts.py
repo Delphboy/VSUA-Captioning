@@ -262,7 +262,7 @@ def parse_opt():
     parser.add_argument(
         "--checkpoint_root",
         type=str,
-        default="log",
+        default="checkpoints",
         help="root directory to store checkpointed models",
     )
     parser.add_argument(
@@ -364,12 +364,6 @@ def parse_opt():
         type=int,
         default=128,
         help="graph embedding_size of obj, attr, rela",
-    )
-    parser.add_argument(
-        "--relationship_weights",
-        type=str,
-        default="",
-        help="location of the relationship weights",
     )
     parser.add_argument(
         "--fixed_seed",

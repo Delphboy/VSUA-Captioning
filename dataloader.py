@@ -103,12 +103,6 @@ class DataLoader(data.Dataset):
             )
             # Terminate the child process when the parent exists
 
-        # load the relationship weights
-        if opt.relationship_weights:
-            with open(opt.relationship_weights) as f:
-                self.relationship_weights = json.load(f)
-            print("[INFO] Relationship weights loaded.")
-
         def cleanup():
             print("Terminating BlobFetcher")
             for split in self.iterators.keys():

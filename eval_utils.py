@@ -71,12 +71,15 @@ def eval_split(model, loader, eval_kwargs={}):
         tmp = [data["fc_feats"], data["att_feats"], data["att_masks"]]
         tmp = [_ if _ is None else torch.from_numpy(_).cuda() for _ in tmp]
         fc_feats, att_feats, att_masks = tmp
+
+        dict_data = data["sg_data"].pop("dict") if "dict" in data["sg_data"] else None
         sg_data = {
             key: data["sg_data"][key]
             if data["sg_data"][key] is None
             else torch.from_numpy(data["sg_data"][key]).cuda()
             for key in data["sg_data"]
         }
+        sg_data["dict"] = dict_data
 
         # forward the model to also get generated samples for each image
         with torch.no_grad():
