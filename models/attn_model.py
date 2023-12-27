@@ -38,6 +38,9 @@ class AttModel(CaptionModel):
         self.embed = build_embeding_layer(
             self.vocab_size + 1, self.input_encoding_size, self.drop_prob_lm
         )
+        self.embed_node_labels = build_embeding_layer(
+            9487 + 1, self.input_encoding_size, 0.1
+        )
         self.fc_embed = nn.Sequential(
             nn.Linear(self.fc_feat_size, self.rnn_size),
             nn.ReLU(),
@@ -187,7 +190,7 @@ class AttModel(CaptionModel):
                         i.e. the k-th relation of the b-th sample which is between the
                         i-th and j-th objects
         """
-        obj_labels = sg_data["obj_labels"]  # Need to convert these to vocab
+        obj_labels = sg_data["obj_labels"]
         attr_labels = sg_data["attr_labels"]
         rela_masks = sg_data["rela_masks"]
         rela_edges = sg_data["rela_edges"]

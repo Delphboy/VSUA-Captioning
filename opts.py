@@ -47,7 +47,7 @@ def parse_opt():
     parser.add_argument(
         "--objectid_to_cocotalkid",
         type=str,
-        default="data/objectid_to_cocotalkid.npz",
+        default="",
         help="The path to the dictionary mapping object id to coco talk id",
     )
     parser.add_argument(

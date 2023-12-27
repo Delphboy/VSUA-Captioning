@@ -191,3 +191,4 @@ data/*.h5
 
 log/
 eval_results/
+checkpoints/

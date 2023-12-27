@@ -202,6 +202,7 @@ class GraphAttentionLayer(nn.Module):
         # Compute attention score
         e = self.activation(self.attn(g_concat))
         e = e.squeeze(-1)
+        e = e.masked_fill(adj_mat == 0, -1000)
 
         # Weights from Object Label Embeddings
         if obj_embds is not None:
@@ -215,11 +216,11 @@ class GraphAttentionLayer(nn.Module):
             ).view(batch_size, num_nodes, num_nodes, self.n_heads, self.n_hidden * 2)
 
             weights_score = self.weight_score(obj_embds_concat).squeeze(-1)
+            weights_score = weights_score.masked_fill(adj_mat == 0, -1000)
+            a = self.softmax(e) * weights_score
+        else:
+            a = self.softmax(e)
 
-            e = e * weights_score
-
-        e = e.masked_fill(adj_mat == 0, -1000)
-        a = self.softmax(e)
         a = self.dropout(a)
 
         attn_res = torch.einsum("bijh,bjhf->bihf", a, g)
