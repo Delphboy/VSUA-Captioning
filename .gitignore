@@ -180,6 +180,7 @@ pyrightconfig.json
 
 
 
+data/coco_pred_sg
 data/bu_data
 data/cocobu_att
 data/cocobu_box
@@ -192,3 +193,4 @@ data/*.h5
 log/
 eval_results/
 checkpoints/
+vsua-checkpoints/

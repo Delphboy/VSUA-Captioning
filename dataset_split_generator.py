@@ -73,6 +73,8 @@ if __name__ == "__main__":
     percentage = args.p
     seed = args.s
 
+    print(f"Given percentage: {percentage} and seed: {seed}")
+
     if percentage < 0 or percentage > 1:
         print("Percentage must be between 0 and 1")
         sys.exit(1)
