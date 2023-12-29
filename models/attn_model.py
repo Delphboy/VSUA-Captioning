@@ -266,22 +266,22 @@ class AttModel(CaptionModel):
         create node embeddings for node weight prediction task
         """
         obj_labels = sg_data["obj_labels"]
-        # dictionary = sg_data["dict"]
+        dictionary = sg_data["dict"]
 
-        # # Conversion from SGAE obj_labels to COCO talk
-        # obj_labels = obj_labels.squeeze(-1)
-        # obj_labels = obj_labels.view(-1)
-        # obj_labels = obj_labels.tolist()
-        # # 9487 is the index of UNK
-        # obj_labels = [dictionary.get(obj_label, 9487) for obj_label in obj_labels]
-        # obj_labels = torch.tensor(obj_labels, dtype=torch.long).to(
-        #     sg_data["obj_labels"].device
-        # )
-        # obj_labels = obj_labels.view(sg_data["obj_labels"].size())
+        # Conversion from SGAE obj_labels to COCO talk
+        obj_labels = obj_labels.squeeze(-1)
+        obj_labels = obj_labels.view(-1)
+        obj_labels = obj_labels.tolist()
+        # 9487 is the index of UNK
+        obj_labels = [dictionary.get(obj_label, 9487) for obj_label in obj_labels]
+        obj_labels = torch.tensor(obj_labels, dtype=torch.long).to(
+            sg_data["obj_labels"].device
+        )
+        obj_labels = obj_labels.view(sg_data["obj_labels"].size())
 
         # Create embeddings
-        # obj_embed = self.embed(obj_labels)
-        obj_embed = self.embed_node_labels(obj_labels)
+        obj_embed = self.embed(obj_labels)
+        # obj_embed = self.embed_node_labels(obj_labels)
         return obj_embed.squeeze(2)
 
     def _forward(

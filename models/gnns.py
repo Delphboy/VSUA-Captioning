@@ -217,7 +217,11 @@ class GraphAttentionLayer(nn.Module):
 
             weights_score = self.weight_score(obj_embds_concat).squeeze(-1)
             weights_score = weights_score.masked_fill(adj_mat == 0, -1000)
-            a = self.softmax(e) * weights_score
+            # a = self.softmax(e) * weights_score
+
+            # https://github.com/yahoo/object_relation_transformer/blob/33a75cd3a3c825b2d70ebff4a56c3108aaac0d55/models/RelationTransformerModel.py#L236
+            temp = torch.log(torch.clamp(weights_score, min=1e-6)) + e
+            a = self.softmax(temp)
         else:
             a = self.softmax(e)
 
