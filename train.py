@@ -101,6 +101,9 @@ def train(opt):
         tmp = [_ if _ is None else torch.from_numpy(_).cuda() for _ in tmp]
         fc_feats, att_feats, targets, masks, att_masks = tmp
         dict_data = data["sg_data"].pop("dict") if "dict" in data["sg_data"] else None
+        weight_data = (
+            data["sg_data"].pop("weights") if "weights" in data["sg_data"] else None
+        )
         sg_data = {
             key: data["sg_data"][key]
             if data["sg_data"][key] is None
@@ -108,6 +111,7 @@ def train(opt):
             for key in data["sg_data"]
         }
         sg_data["dict"] = dict_data
+        sg_data["weights"] = weight_data
 
         # 2. Forward model and compute loss
         torch.cuda.synchronize()

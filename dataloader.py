@@ -282,8 +282,15 @@ class DataLoader(data.Dataset):
             sg_data["dict"] = np.load(
                 self.opt.objectid_to_cocotalkid, allow_pickle=True
             )["mapping"][()]
+            sg_data["weights"] = np.load(
+                self.opt.objectid_to_cocotalkid.replace(
+                    "objectid_to_cocotalkid", "weights"
+                ),
+                allow_pickle=True,
+            )["weights"][()]
         else:
             sg_data["dict"] = None
+            sg_data["weights"] = None
 
         return sg_data
 

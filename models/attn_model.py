@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import math
 from argparse import Namespace
 from typing import List, Optional
 
@@ -40,6 +41,10 @@ class AttModel(CaptionModel):
         )
         self.embed_node_labels = build_embeding_layer(
             9487 + 1, self.input_encoding_size, 0.1
+        )
+        self.weight_reproject = nn.Sequential(
+            nn.Linear(self.opt.input_encoding_size, self.opt.input_encoding_size),
+            nn.ReLU(),
         )
         self.fc_embed = nn.Sequential(
             nn.Linear(self.fc_feat_size, self.rnn_size),
@@ -284,6 +289,63 @@ class AttModel(CaptionModel):
         # obj_embed = self.embed_node_labels(obj_labels)
         return obj_embed.squeeze(2)
 
+    def _sinusoidal_embedding(self, d_model, length):
+        """
+        :param d_model: dimension of the model
+        :param length: length of positions
+        :return: length*d_model position matrix
+        """
+        if d_model % 2 != 0:
+            raise ValueError(
+                "Cannot use sin/cos positional encoding with "
+                "odd dim (got dim={:d})".format(d_model)
+            )
+        pe = torch.zeros(length, d_model)
+        position = torch.arange(0, length).unsqueeze(1)
+        div_term = torch.exp(
+            (
+                torch.arange(0, d_model, 2, dtype=torch.float)
+                * -(math.log(10000.0) / d_model)
+            )
+        )
+        pe[:, 0::2] = torch.sin(position.float() * div_term)
+        pe[:, 1::2] = torch.cos(position.float() * div_term)
+
+        return pe
+
+    def _create_node_weight_predictor_vectors(self, sg_data: dict) -> torch.Tensor:
+        # The vector will contain:
+        # - Average position of the word (mined information) OR average of averages
+        # -
+        # The vector will then be linearly projected
+        obj_labels = sg_data["obj_labels"]
+        weights_dict = sg_data["weights"]
+
+        # Conversion from SGAE obj_labels to COCO talk
+        obj_labels = obj_labels.squeeze(-1)
+        obj_labels = obj_labels.view(-1)
+        obj_labels = obj_labels.tolist()
+
+        # get average weight
+        avg_weight = sum(list(weights_dict.values())) / len(weights_dict)
+
+        weights = [
+            weights_dict.get(str(obj_label), avg_weight) for obj_label in obj_labels
+        ]
+        weights = (
+            torch.tensor(weights, dtype=torch.float)
+            .to(sg_data["obj_labels"].device)
+            .view(-1, 1)
+        )
+
+        weights_emb = (
+            self._sinusoidal_embedding(self.input_encoding_size, weights.size(0))
+            .to(sg_data["obj_labels"].device)
+            .view(sg_data["obj_labels"].shape[0], sg_data["obj_labels"].shape[1], -1)
+        )
+        weights = self.weight_reproject(weights_emb)
+        return weights
+
     def _forward(
         self,
         sg_data: dict,
@@ -293,7 +355,8 @@ class AttModel(CaptionModel):
         att_masks=Optional[torch.Tensor],
     ) -> torch.Tensor:
         if sg_data["dict"] is not None:
-            sg_data["embds"] = self._create_node_weight_predictor_embeddings(sg_data)
+            # sg_data["embds"] = self._create_node_weight_predictor_embeddings(sg_data)
+            sg_data["embds"] = self._create_node_weight_predictor_vectors(sg_data)
 
         core_args = self.prepare_core_args(sg_data, fc_feats, att_feats, att_masks)
         # make seq_per_img copies of the encoded inputs:
