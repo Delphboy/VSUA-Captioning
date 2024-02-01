@@ -3,6 +3,9 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
+import torch_geometric
+from torch_geometric.data import Data
+from torch_geometric.nn import GATv2Conv
 
 import utils.helper as helper
 
@@ -255,7 +258,7 @@ class GraphAttentionNetwork(nn.Module):
             dropout,
             leaky_relu_negative_slope,
         )
-        self.activation_1 = nn.LeakyReLU(leaky_relu_negative_slope)
+        self.activation_1 = nn.ReLU()
         self.layer_2 = GraphAttentionLayer(
             in_features,
             out_features,
@@ -264,7 +267,7 @@ class GraphAttentionNetwork(nn.Module):
             dropout,
             leaky_relu_negative_slope,
         )
-        self.activation_2 = nn.LeakyReLU(leaky_relu_negative_slope)
+        self.activation_2 = nn.ReLU()
         self.gnn = GNN(opt)
 
     def forward(
@@ -357,3 +360,72 @@ class GraphConvolutionalNetwork(nn.Module):
 
         # return obj_vecs, attr_vecs, rela_vecs
         return self.gnn(obj_vecs, attr_vecs, rela_vecs, edges, rela_masks)
+
+
+from torch_geometric.data import Batch, Data
+
+
+class PyGGraphAttentionNetwork(nn.Module):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        n_heads: int,
+        is_concat: bool = True,
+        dropout: float = 0.6,
+        leaky_relu_negative_slope: float = 0.1,
+        opt=None,
+    ) -> None:
+        super(PyGGraphAttentionNetwork, self).__init__()
+        self.layer_1 = GATv2Conv(
+            in_features,
+            out_features,
+            heads=n_heads,
+            concat=is_concat,
+            negative_slope=leaky_relu_negative_slope,
+            dropout=dropout,
+        )
+        self.activation_1 = nn.ReLU()
+        self.layer_2 = GATv2Conv(
+            in_features,
+            out_features,
+            heads=n_heads,
+            concat=is_concat,
+            negative_slope=leaky_relu_negative_slope,
+            dropout=dropout,
+        )
+        self.activation_2 = nn.ReLU()
+        self.gnn = GNN(opt)
+
+    def forward(
+        self,
+        obj_vecs: torch.Tensor,
+        attr_vecs: torch.Tensor,
+        rela_vecs: torch.Tensor,
+        edges: torch.Tensor,
+        rela_masks: Optional[torch.Tensor] = None,
+        obj_embds: Optional[torch.Tensor] = None,
+    ) -> tuple([torch.Tensor, torch.Tensor, torch.Tensor]):
+        # Update attributes and relations
+        obj_vecs, attr_vecs, rela_vecs = self.gnn(
+            obj_vecs, attr_vecs, rela_vecs, edges, rela_masks
+        )
+
+        batch_size = obj_vecs.shape[0]
+        graphs = []
+        for b in range(batch_size):
+            x = obj_vecs[b]
+            edge_index = edges[b].permute(1, 0)
+            graph = Data(x=x, edge_index=edge_index)
+            graphs.append(graph)
+
+        graphs = Batch.from_data_list(graphs)
+
+        x = self.layer_1(graphs.x, graphs.edge_index)
+        x = self.activation_1(x)
+
+        graphs = torch_geometric.data.Batch.to_data_list(graphs)
+        nodes = [g.x for g in graphs]
+        obj_vecs = torch.stack(nodes, dim=0)
+
+        return obj_vecs, attr_vecs, rela_vecs

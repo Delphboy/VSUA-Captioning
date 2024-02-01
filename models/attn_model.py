@@ -9,7 +9,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from misc.utils import expand_feats
-from models.gnns import GNN, GraphAttentionNetwork, GraphConvolutionalNetwork
+from models.caption_weights import CaptionWeights
+from models.gnns import GNN, GraphConvolutionalNetwork
+from models.gnns import PyGGraphAttentionNetwork as GraphAttentionNetwork
 from utils.helper import build_embeding_layer, pack_wrapper
 
 from .caption_model import CaptionModel
@@ -35,6 +37,7 @@ class AttModel(CaptionModel):
             self.att_feat_size = self.att_feat_size + 5  # concat box position features
         self.sg_label_embed_size = opt.sg_label_embed_size
         self.ss_prob = 0.0  # Schedule sampling probability
+        self.caption_weights = CaptionWeights()
 
         self.embed = build_embeding_layer(
             self.vocab_size + 1, self.input_encoding_size, self.drop_prob_lm
@@ -295,11 +298,7 @@ class AttModel(CaptionModel):
         :param length: length of positions
         :return: length*d_model position matrix
         """
-        if d_model % 2 != 0:
-            raise ValueError(
-                "Cannot use sin/cos positional encoding with "
-                "odd dim (got dim={:d})".format(d_model)
-            )
+        assert d_model % 2 == 0, "d_model ({}) must be even".format(d_model)
         pe = torch.zeros(length, d_model)
         position = torch.arange(0, length).unsqueeze(1)
         div_term = torch.exp(
